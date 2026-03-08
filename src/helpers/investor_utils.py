@@ -32,17 +32,21 @@ class InvestorEngine:
 
             self.daily_cache.setdefault(date, {})[ticker] = price
 
-            current_count = len(self.daily_cache[date])
+            received   = set(self.daily_cache[date].keys())
+            missing    = self.all_watched_stocks - received
+            current_count  = len(received)
             required_count = len(self.all_watched_stocks)
 
-            print(
-                f"[{self.investor_name}] Date: {date} | Collected: {current_count}/{required_count} | Just added: {ticker}")
+            print(f"[{self.investor_name}] Date: {date} | "
+                  f"Collected: {current_count}/{required_count} | "
+                  f"Just added: {ticker} | "
+                  f"Still missing: {missing if missing else 'none'}")
 
-            if current_count == required_count:
+            # Gate: open only when every required ticker has arrived,
+            # regardless of the order messages come in across TCP and Kafka.
+            if not missing:
                 print(f"--- [OK] Gate opened for {date}. Calculating NAV... ---")
                 self.calculate_daily_metrics(date)
-            elif current_count > required_count:
-                print(f"!!! [ERROR] Duplicate data detected for {date}")
 
     def calculate_daily_metrics(self, date):
         """Calculates NAV, Change, and % Change for each managed portfolio."""
