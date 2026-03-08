@@ -38,13 +38,13 @@ def run_server():
             print(f"[DEBUG] Iterating, current_date={current_date}, tickers={len(current_prices)}")
             valid_date = get_next_trading_day(current_date)
             date_str = valid_date.strftime('%Y-%m-%d')
-            time.sleep(5)
             for ticker in current_prices:
                 msg = {"date": date_str, "ticker": ticker, "price": round(current_prices[ticker], 2)}
                 print(f"[DEBUG] Sending: {msg}")
                 producer.send('StockExchange', value=msg).add_callback(on_send_success).add_errback(on_send_error)
             producer.flush()
             current_date = valid_date
+            time.sleep(5)
     except KeyboardInterrupt:
         print("\nSE2 Server shutting down.")
     finally:
