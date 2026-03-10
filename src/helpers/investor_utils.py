@@ -126,8 +126,14 @@ class InvestorEngine:
                 'StockExchange',
                 bootstrap_servers=['localhost:9092'],
                 value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+                # No group_id: every restart gets a fresh anonymous consumer.
+                # Kafka will never have committed offsets for this instance,
+                # so auto_offset_reset='latest' always applies cleanly.
                 group_id=None,
+                # Only receive messages produced from this moment forward.
+                # History is ignored — each restart is a new event.
                 auto_offset_reset='latest',
+                # No offset commits — stateless by design.
                 enable_auto_commit=False,
             )
             print(f"[{self.investor_name}] Kafka listener subscribed to StockExchange (latest only).")
