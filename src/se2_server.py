@@ -1,8 +1,10 @@
+import random
+import time
 import json
-
+from datetime import datetime
 from kafka import KafkaProducer
 
-from clock import wait_for_tick, ack
+from src.helpers.date import get_next_trading_day
 from src.helpers import config
 
 
@@ -25,34 +27,32 @@ def run_server():
     )
 
     current_prices = {ticker: price for ticker, price in config.ALL_STOCKS[12:]}
+    current_date = datetime(2020, 1, 1)
     topic = 'StockExchange'
-    tick = 0
 
     print(f"SE2 Server ready: emitting to Kafka topic '{topic}'...")
 
     try:
         while True:
-            # ── Wait for coordinator to publish this tick ──────────────────
-            date_str = wait_for_tick(tick)
-            print(f"[SE2] Tick {tick} → {date_str}")
+            valid_date = get_next_trading_day(current_date)
+            date_str = valid_date.strftime('%Y-%m-%d')
+            print(f"[SE2] Emitting date {date_str}")
 
             for ticker in current_prices:
+                current_prices[ticker] *= (1 + random.uniform(-0.03, 0.03))
                 msg = {
-                    "date": date_str,
+                    "date":   date_str,
                     "ticker": ticker,
-                    "price": round(current_prices[ticker], 2)
+                    "price":  round(current_prices[ticker], 2)
                 }
-                print(f"[SE2] Sending: {msg}")
                 (producer
                     .send(topic, value=msg)
                     .add_callback(on_send_success)
                     .add_errback(on_send_error))
 
             producer.flush()
-
-            # ── Signal coordinator that SE2 is done with this tick ─────────
-            ack("se2")
-            tick += 1
+            current_date = valid_date
+            time.sleep(5)
 
     except KeyboardInterrupt:
         print("\n[SE2] Server shutting down.")

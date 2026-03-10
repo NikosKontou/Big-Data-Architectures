@@ -2,8 +2,9 @@ import socket
 import random
 import json
 import threading
+from datetime import datetime
 
-from clock import wait_for_tick, ack
+from src.helpers.date import get_next_trading_day
 from src.helpers import config
 
 PORT = 9999
@@ -11,32 +12,28 @@ PORT = 9999
 
 def run_server():
     current_prices = {ticker: price for ticker, price in config.ALL_STOCKS[:12]}
+    current_date = datetime(2020, 1, 1)
 
     ssocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     ssocket.bind(('', PORT))
     ssocket.listen(10)
-    ssocket.setblocking(False)
     print(f"SE1 Server ready on port {PORT}")
 
     clients = []
     clients_lock = threading.Lock()
-    tick = 0
 
     def accept_loop():
         """Continuously accepts new investor connections in a background thread."""
         while True:
             try:
-                ssocket.setblocking(True)
-                # block here until someone connects
                 c, addr = ssocket.accept()
                 c.setblocking(True)
                 with clients_lock:
                     clients.append(c)
-                print(f"[SE1] Client connected from {addr} "
-                      f"(total: {len(clients)})")
+                print(f"[SE1] Client connected from {addr} (total: {len(clients)})")
             except OSError:
-                break           # server socket was closed — time to exit
+                break
 
     threading.Thread(target=accept_loop, daemon=True, name='SE1-accept').start()
 
@@ -56,10 +53,10 @@ def run_server():
 
     try:
         while True:
-            date_str = wait_for_tick(tick)
-            print(f"[SE1] Tick {tick} → {date_str}")
+            valid_date = get_next_trading_day(current_date)
+            date_str = valid_date.strftime('%Y-%m-%d')
+            print(f"[SE1] Emitting date {date_str}")
 
-            # Evolve prices and broadcast to ALL connected investors
             for ticker in current_prices:
                 current_prices[ticker] *= (1 + random.uniform(-0.03, 0.03))
                 msg = json.dumps({
@@ -69,8 +66,8 @@ def run_server():
                 }) + '\n'
                 broadcast(msg.encode())
 
-            ack("se1")
-            tick += 1
+            current_date = valid_date
+            time.sleep(5)
 
     except KeyboardInterrupt:
         print("\n[SE1] Server shutting down.")
@@ -82,4 +79,5 @@ def run_server():
 
 
 if __name__ == "__main__":
+    import time
     run_server()
